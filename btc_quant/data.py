@@ -26,6 +26,8 @@ def validate(frame, timeframe, *, require_closed=False, now_ms=None):
             or (df.low > df[["open", "close", "high"]].min(axis=1)).any()):
         raise ValueError("Invalid OHLCV price/volume")
     step = STEPS[timeframe]
+    if (df.open_time_ms % step != 0).any():
+        raise ValueError("Candle starts must align to UTC interval")
     if (df.open_time_ms.diff().dropna() != step).any():
         raise ValueError("Missing candles: refuse to backtest")
     if (df.close_time_ms != df.open_time_ms + step - 1).any():
@@ -57,8 +59,9 @@ def normalize(raw, symbol, timeframe, now_ms=None, *, ccxt=False):
             if len(r) < 7:
                 raise ValueError("Malformed Binance row")
             o, h, l, c, v = map(float, r[1:6])
-        rows.append((opened, o, h, l, c, v, opened + step - 1))
-    return validate(pd.DataFrame(rows, columns=COLS), timeframe, require_closed=True, now_ms=now_ms)
+        qvol = None if ccxt or len(r) < 8 else float(r[7])
+        rows.append((opened, o, h, l, c, v, opened + step - 1, qvol))
+    return validate(pd.DataFrame(rows, columns=[*COLS, "quote_volume"]), timeframe, require_closed=True, now_ms=now_ms)
 
 
 def fetch(symbol, timeframe, days=365, source="binance", now_ms=None):
@@ -130,6 +133,12 @@ def load_csv(path, symbol, timeframe):
     # Offline CSV accepts standard columns and treats all records as historical.
     if "open_time" in df and "open_time_ms" not in df:
         df = df.rename(columns={"open_time": "open_time_ms", "volume": "base_volume"})
+    if "volume" in df.columns and "base_volume" not in df.columns:
+        df = df.rename(columns={"volume": "base_volume"})
+    if "symbol" in df.columns and (df["symbol"] != symbol).any():
+        raise ValueError("CSV symbol does not match requested symbol")
+    if "timeframe" in df.columns and (df["timeframe"] != timeframe).any():
+        raise ValueError("CSV timeframe does not match requested timeframe")
     df["close_time_ms"] = df.open_time_ms + STEPS[timeframe] - 1
     df = validate(df, timeframe)
     df["symbol"] = symbol
@@ -140,3 +149,19 @@ def save_csv(df, path):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path, index=False)
+
+
+def save_parquet(df, path):
+    """Optional pyarrow-backed columnar storage for repeat research runs."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(path, index=False)  # pip install pyarrow
+
+
+def load_parquet(path, symbol, timeframe):
+    df = pd.read_parquet(path)
+    if "symbol" in df and (df.symbol != symbol).any():
+        raise ValueError("Parquet symbol mismatch")
+    if "timeframe" in df and (df.timeframe != timeframe).any():
+        raise ValueError("Parquet timeframe mismatch")
+    return validate(df, timeframe)

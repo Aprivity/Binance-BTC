@@ -7,7 +7,7 @@ from btc_quant.config import Config, STEPS
 from btc_quant.core import Account, backtest, signals
 from btc_quant.data import normalize, validate
 from btc_quant.paper import state_for, paper_tick, atomic_save, load_state
-from btc_quant.report import metrics
+from btc_quant.report import metrics, market_analysis
 
 
 def history(cfg, n=550):
@@ -148,3 +148,20 @@ def test_historical_time_alignment():
     hist["ETH/USDT"] = hist["ETH/USDT"].drop(index=200)
     with pytest.raises(ValueError):
         backtest(hist, cfg)
+
+
+def test_risk_analysis_has_correlation_and_benchmark():
+    cfg = Config()
+    hist = history(cfg)
+    book = backtest(hist, cfg)
+    result = market_analysis(hist, cfg, book)
+    assert set(result["close_return_correlation"]) == set(cfg.symbols)
+    assert math.isfinite(result["benchmark_ending_usdt"])
+    assert math.isfinite(result["strategy_minus_benchmark_pct_points"])
+
+
+def test_cli_demo_and_report(tmp_path):
+    from btc_quant.__main__ import main
+    main(["demo", "--output-dir", str(tmp_path)])
+    assert (tmp_path / "market_analysis.json").exists()
+    assert (tmp_path / "metrics.json").exists()

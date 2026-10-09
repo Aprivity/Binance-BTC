@@ -18,7 +18,7 @@ python -m btc_quant paper --poll-seconds 60
 python -m btc_quant report
 ```
 
-To cache historical closed candles, run `python -m btc_quant data --days 365`. For offline backtesting, pass `--csv-dir data/market` after downloading. Files are `BTCUSDT_4h.csv` / `ETHUSDT_4h.csv`. Add optional CCXT adapter with `pip install ccxt` and `--source ccxt` (market data only). API access depends on your country, VPS network and Binance availability.
+To cache historical closed candles, run `python -m btc_quant data --days 365`. For offline backtesting, pass `--csv-dir data/market` after downloading. Optional columnar caching: `pip install pyarrow`, then `python -m btc_quant data --format parquet --days 365` and `python -m btc_quant backtest --parquet-dir data/market --days 365`. Files are `BTCUSDT_4h.csv` / `ETHUSDT_4h.csv`. Add optional CCXT adapter with `pip install ccxt` and `--source ccxt` (market data only). API access depends on your country, VPS network and Binance availability.
 
 ## Strategy assumptions
 
@@ -37,6 +37,6 @@ Paper mode uses public Binance closed candles and public current prices. It only
 
 ## Output and testing
 
-Each backtest produces `metrics.json`, `trades.csv`, `events.csv`, `equity.csv`, `equity_drawdown.png` under `outputs/`. Paper reports use `python -m btc_quant report`. Metrics include net P&L, peak drawdown, win rate, profit factor, Sharpe estimate, trading fees and realized P&L by asset. Unrealized P&L is included in portfolio equity but not realized trade statistics. Synthetic demo is solely a smoke test and is not a profit forecast.
+Each backtest produces `metrics.json`, `trades.csv`, `events.csv`, `equity.csv`, `equity_drawdown.png` under `outputs/`. Paper reports use `python -m btc_quant report`. Metrics include net P&L, peak drawdown, win rate, profit factor, Sharpe/Sortino estimates, annualized volatility, trading fees and realized P&L by asset. Historical backtests also produce `market_analysis.json` with close-to-close return correlations and a fee/slippage-adjusted, 50%-invested equal-weight buy-and-hold benchmark (no exit fee). Unrealized P&L is included in portfolio equity but not realized trade statistics. Synthetic demo is solely a smoke test and is not a profit forecast.
 
 Run `python -m pytest -q` before deploying. This project is educational research, **not investment advice**. Backtests are hypothetical and may not resemble executable results.

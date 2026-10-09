@@ -15,9 +15,14 @@ def metrics(book, cfg):
     series = curve.equity.pct_change().dropna() if not curve.empty else pd.Series(dtype=float)
     # Crypto has 365 days/year, no equity-market 252-day assumption.
     periods = 365 * (86_400_000 // STEPS[cfg.timeframe])
-    sharpe = None
+    sharpe, sortino = None, None
     if len(series) >= 3 and series.std(ddof=1) > 0:
         sharpe = float(series.mean() / series.std(ddof=1) * np.sqrt(periods))
+    if len(series) >= 3:
+        downside = float(np.sqrt(np.mean(np.square(np.minimum(series.to_numpy(dtype=float), 0)))))
+        if downside > 0:
+            sortino = float(series.mean() / downside * np.sqrt(periods))
+    volatility = float(series.std(ddof=1) * np.sqrt(periods) * 100) if len(series) >= 3 else None
     contributions = {s: round(sum(t["pnl_usdt"] for t in book.trades if t["symbol"] == s), 4)
                      for s in cfg.symbols}
     return {"starting_usdt": cfg.starting_usdt, "ending_usdt": round(ending, 4),
@@ -26,6 +31,8 @@ def metrics(book, cfg):
             "closed_trades": len(pnl), "win_rate_pct": round(float((pnl > 0).mean()) * 100, 2) if len(pnl) else None,
             "profit_factor": round(float(wins / losses), 4) if losses else None,
             "sharpe": round(sharpe, 4) if sharpe is not None else None,
+            "sortino": round(sortino, 4) if sortino is not None else None,
+            "annualized_volatility_pct": round(volatility, 4) if volatility is not None else None,
             "fees_paid_usdt": round(book.fees, 4), "slippage_estimate_usdt": round(book.slippage, 4),
             "realized_pnl_usdt": round(float(pnl.sum()), 4),
             "pnl_by_symbol": contributions,
@@ -57,3 +64,36 @@ def write_report(book, cfg, output_dir, plot=True):
         fig.savefig(out / "equity_drawdown.png", dpi=145)
         plt.close(fig)
     return result
+
+
+def market_analysis(history, cfg, book):
+    """Historical BTC/ETH correlation and half-invested buy-and-hold baseline."""
+    if not book.curve:
+        return {}
+    start_ms = int(pd.Timestamp(book.curve[0]["time"]).timestamp() * 1000)
+    end_ms = int(pd.Timestamp(book.curve[-1]["time"]).timestamp() * 1000)
+    frames = {s: x[(x.open_time_ms <= end_ms) & (x.close_time_ms >= start_ms)].copy()
+              for s, x in history.items()}
+    common = sorted(set.intersection(*(set(x.open_time_ms.astype(int)) for x in frames.values())))
+    if len(common) < 3:
+        return {}
+    aligned = {s: frames[s].set_index("open_time_ms").loc[common] for s in cfg.symbols}
+    prices = pd.DataFrame({s: x.close for s, x in aligned.items()})
+    corr = prices.pct_change().dropna().corr()
+    # 50% invested, equal size across symbols; remaining 50% idle in USDT.
+    allocation_per_symbol = cfg.starting_usdt * .5 / len(cfg.symbols)
+    benchmark_cash = cfg.starting_usdt * .5
+    final_value = benchmark_cash
+    for sym in cfg.symbols:
+        entry = float(aligned[sym].iloc[0].open) * (1 + cfg.slip)
+        qty = allocation_per_symbol / (entry * (1 + cfg.fee))
+        final_value += qty * float(aligned[sym].iloc[-1].close)
+    return {
+        "close_return_correlation": {
+            a: {b: (round(float(corr.loc[a, b]), 4) if pd.notna(corr.loc[a, b]) else None)
+                for b in cfg.symbols} for a in cfg.symbols},
+        "benchmark": "Equal-weight 50% total invested buy-and-hold, entry fees/slippage included, no exit fee",
+        "benchmark_ending_usdt": round(final_value, 4),
+        "benchmark_return_pct": round(100 * (final_value / cfg.starting_usdt - 1), 4),
+        "strategy_minus_benchmark_pct_points": round(100 * (book.equity() - final_value) / cfg.starting_usdt, 4),
+    }

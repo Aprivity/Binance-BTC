@@ -7,10 +7,10 @@ from logging.handlers import RotatingFileHandler
 import numpy as np
 import pandas as pd
 from .config import Config, SYMBOLS, STEPS
-from .data import fetch, load_csv, save_csv
+from .data import fetch, load_csv, save_csv, save_parquet, load_parquet
 from .core import backtest, Account
 from .paper import run_paper, load_state
-from .report import write_report
+from .report import write_report, market_analysis
 
 
 def synthetic(symbol, timeframe, n=550):
@@ -51,6 +51,7 @@ def main(argv=None):
     bt.add_argument("--days", type=int, default=365)
     bt.add_argument("--source", choices=["binance", "ccxt"], default="binance")
     bt.add_argument("--csv-dir", help="Offline CSV directory: BTCUSDT_4h.csv, ETHUSDT_4h.csv")
+    bt.add_argument("--parquet-dir", help="Offline Parquet directory: BTCUSDT_4h.parquet, ETHUSDT_4h.parquet")
     bt.add_argument("--mode", choices=["portfolio", "independent"], default="portfolio")
     bt.add_argument("--output-dir", default="outputs/backtest-v2")
     paper = sub.add_parser("paper", help="Forward paper simulation, no real orders")
@@ -66,6 +67,7 @@ def main(argv=None):
     data.add_argument("--interval", choices=tuple(STEPS), default="4h")
     data.add_argument("--days", type=int, default=365)
     data.add_argument("--source", choices=["binance", "ccxt"], default="binance")
+    data.add_argument("--format", choices=["csv", "parquet"], default="csv")
     data.add_argument("--output-dir", default="data/market")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -80,10 +82,12 @@ def main(argv=None):
     if args.cmd == "data":
         for s in args.symbols:
             df = fetch(s, args.interval, args.days, args.source)
-            path = Path(args.output_dir) / f"{s.replace('/', '')}_{args.interval}.csv"
-            save_csv(df, path)
+            path = Path(args.output_dir) / f"{s.replace('/', '')}_{args.interval}.{args.format}"
+            (save_csv if args.format == "csv" else save_parquet)(df, path)
             print(f"{s}: {len(df)} closed candles -> {path}")
         return
+    if args.cmd == "backtest" and args.csv_dir and args.parquet_dir:
+        p.error("Choose either --csv-dir or --parquet-dir")
     cfg = Config(symbols=tuple(args.symbols), timeframe=args.interval,
                  starting_usdt=args.initial_cash, fee_bps=args.fee_bps,
                  slippage_bps=args.slippage_bps, risk_pct=args.risk_pct,
@@ -100,17 +104,26 @@ def main(argv=None):
         days = None
         print("[DEMO] SYNTHETIC DATA ONLY. NO INVESTMENT SIGNIFICANCE.")
     else:
-        history = {s: load_csv(Path(args.csv_dir) / f"{s.replace('/', '')}_{cfg.timeframe}.csv", s, cfg.timeframe)
-                   if args.csv_dir else fetch(s, cfg.timeframe, args.days, args.source) for s in cfg.symbols}
+        history = {s: (load_csv(Path(args.csv_dir) / f"{s.replace('/', '')}_{cfg.timeframe}.csv", s, cfg.timeframe)
+                        if args.csv_dir else load_parquet(Path(args.parquet_dir) / f"{s.replace('/', '')}_{cfg.timeframe}.parquet", s, cfg.timeframe)
+                        if args.parquet_dir else fetch(s, cfg.timeframe, args.days, args.source))
+                   for s in cfg.symbols}
         days = args.days
     if args.cmd == "backtest" and args.mode == "independent":
         for s in cfg.symbols:
             per = Config(**{**cfg.to_dict(), "symbols": (s,)})
             book = backtest({s: history[s]}, per, days)
-            print(s, json.dumps(write_report(book, per, Path(args.output_dir) / s.replace('/', ''), plot=True), indent=2))
+            target = Path(args.output_dir) / s.replace("/", "")
+            result = write_report(book, per, target, plot=True)
+            analysis = market_analysis({s: history[s]}, per, book)
+            (target / "market_analysis.json").write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+            print(s, json.dumps({**result, **analysis}, indent=2))
     else:
         book = backtest(history, cfg, days)
-        print(json.dumps(write_report(book, cfg, args.output_dir), indent=2))
+        result = write_report(book, cfg, args.output_dir)
+        analysis = market_analysis(history, cfg, book)
+        (Path(args.output_dir) / "market_analysis.json").write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+        print(json.dumps({**result, **analysis}, indent=2))
 
 
 if __name__ == "__main__":
