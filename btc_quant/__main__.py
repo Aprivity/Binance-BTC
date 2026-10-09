@@ -13,6 +13,7 @@ from .paper import run_paper, load_state
 from .report import write_report, market_analysis
 from .strategies import STRATEGIES
 from .research import compare
+from .intraday import intraday_study, ARMS
 
 
 def synthetic(symbol, timeframe, n=550):
@@ -66,6 +67,14 @@ def main(argv=None):
     cmp.add_argument("--train-ratio", type=float, default=.7)
     cmp.add_argument("--strategies", nargs="+", choices=STRATEGIES, default=list(STRATEGIES))
     cmp.add_argument("--output-dir", default="outputs/compare-v021")
+    intraday = sub.add_parser("intraday-study", help="Research-only BTC 4h A-E experiments, walk-forward")
+    common(intraday)
+    intraday.add_argument("--csv-dir", required=True, help="CSV directory containing BTCUSDT_4h.csv")
+    intraday.add_argument("--arms", nargs="+", choices=ARMS, default=list(ARMS))
+    intraday.add_argument("--train-days", type=int, default=180)
+    intraday.add_argument("--test-days", type=int, default=60)
+    intraday.add_argument("--step-days", type=int, default=60)
+    intraday.add_argument("--output-dir", default="outputs/btc-intraday-v022")
     paper = sub.add_parser("paper", help="Forward paper simulation, no real orders")
     common(paper)
     paper.add_argument("--state", default="outputs/paper-v2/state.json")
@@ -105,6 +114,17 @@ def main(argv=None):
                  slippage_bps=args.slippage_bps, risk_pct=args.risk_pct,
                  max_symbol_pct=args.max_symbol_pct, max_total_pct=args.max_total_pct,
                  max_open_risk_pct=args.max_open_risk_pct, max_drawdown_pct=args.max_drawdown_pct)
+    if args.cmd == "intraday-study":
+        if args.symbols != ["BTC/USDT"] or args.interval != "4h":
+            p.error("intraday-study requires --symbols BTC/USDT --interval 4h")
+        history = load_csv(Path(args.csv_dir) / "BTCUSDT_4h.csv", "BTC/USDT", "4h")
+        fold, aggregate, info = intraday_study(history, cfg, arms=tuple(args.arms),
+                                             train_days=args.train_days, test_days=args.test_days,
+                                             step_days=args.step_days, output_dir=args.output_dir)
+        print(f"BTC-only 4h historical walk-forward: {info['folds']} reset folds")
+        print(aggregate.to_string(index=False))
+        print(f"Saved diagnostics, fold summaries and plot to {args.output_dir}")
+        return
     if args.cmd == "paper":
         log_path = Path(args.state).with_suffix(".log")
         log_path.parent.mkdir(parents=True, exist_ok=True)
