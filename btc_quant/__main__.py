@@ -11,6 +11,8 @@ from .data import fetch, load_csv, save_csv, save_parquet, load_parquet
 from .core import backtest, Account
 from .paper import run_paper, load_state
 from .report import write_report, market_analysis
+from .strategies import STRATEGIES
+from .research import compare
 
 
 def synthetic(symbol, timeframe, n=550):
@@ -54,6 +56,16 @@ def main(argv=None):
     bt.add_argument("--parquet-dir", help="Offline Parquet directory: BTCUSDT_4h.parquet, ETHUSDT_4h.parquet")
     bt.add_argument("--mode", choices=["portfolio", "independent"], default="portfolio")
     bt.add_argument("--output-dir", default="outputs/backtest-v2")
+    cmp = sub.add_parser("compare", help="Research only: four strategies with untouched time holdout")
+    common(cmp)
+    cmp.add_argument("--days", type=int, default=730)
+    cmp.add_argument("--source", choices=["binance", "ccxt"], default="binance")
+    cmp.add_argument("--csv-dir")
+    cmp.add_argument("--parquet-dir")
+    cmp.add_argument("--scope", choices=["all", "portfolio", "independent"], default="all")
+    cmp.add_argument("--train-ratio", type=float, default=.7)
+    cmp.add_argument("--strategies", nargs="+", choices=STRATEGIES, default=list(STRATEGIES))
+    cmp.add_argument("--output-dir", default="outputs/compare-v021")
     paper = sub.add_parser("paper", help="Forward paper simulation, no real orders")
     common(paper)
     paper.add_argument("--state", default="outputs/paper-v2/state.json")
@@ -86,7 +98,7 @@ def main(argv=None):
             (save_csv if args.format == "csv" else save_parquet)(df, path)
             print(f"{s}: {len(df)} closed candles -> {path}")
         return
-    if args.cmd == "backtest" and args.csv_dir and args.parquet_dir:
+    if args.cmd in ("backtest", "compare") and args.csv_dir and args.parquet_dir:
         p.error("Choose either --csv-dir or --parquet-dir")
     cfg = Config(symbols=tuple(args.symbols), timeframe=args.interval,
                  starting_usdt=args.initial_cash, fee_bps=args.fee_bps,
@@ -109,6 +121,16 @@ def main(argv=None):
                         if args.parquet_dir else fetch(s, cfg.timeframe, args.days, args.source))
                    for s in cfg.symbols}
         days = args.days
+    if args.cmd == "compare":
+        summary, methodology = compare(history, cfg, strategies=tuple(args.strategies),
+                                       train_ratio=args.train_ratio, scope=args.scope,
+                                       days=args.days, output_dir=args.output_dir)
+        print(f"Holdout starts {methodology['split_utc']}")
+        cols = ["scope", "strategy", "stage", "net_return_pct", "max_drawdown_pct",
+                "closed_trades", "profit_factor", "policy_hold_return_pct", "avg_exposure_pct"]
+        print(summary[cols].to_string(index=False))
+        print(f"Saved CSV, methodology and plots to {args.output_dir}")
+        return
     if args.cmd == "backtest" and args.mode == "independent":
         for s in cfg.symbols:
             per = Config(**{**cfg.to_dict(), "symbols": (s,)})

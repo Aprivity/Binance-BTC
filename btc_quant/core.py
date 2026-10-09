@@ -65,7 +65,11 @@ class Account:
         dd = value / self.peak - 1 if self.peak else 0
         if dd <= -cfg.max_drawdown_pct / 100:
             self.halted = True
-        self.curve.append({"time": when, "equity": value, "drawdown": dd})
+        # Attribution-only tracking: not used to size orders or change paper behavior.
+        weights = {s: pos.quantity * self.prices[s] / value if value > 0 else 0.0
+                   for s, pos in self.positions.items()}
+        self.curve.append({"time": when, "equity": value, "drawdown": dd,
+                           "weights": weights})
 
     def open_risk(self, cfg):
         total = 0.0
@@ -138,11 +142,14 @@ class Account:
         return None
 
 
-def backtest(history, cfg, days=None):
+def backtest(history, cfg, days=None, *, strategy="ema", start_ms=None, end_ms=None):
     """Shared cash; signals from prior closed bar; no look-ahead or overlapping candles."""
     if set(history) != set(cfg.symbols):
         raise ValueError("History must match symbols")
-    enrich = {s: signals(history[s], cfg).set_index("open_time_ms", drop=False) for s in cfg.symbols}
+    # Imported locally: research is optional; paper retains the original signals().
+    from .strategies import strategy_signals
+    enrich = {s: strategy_signals(history[s], cfg, strategy).set_index("open_time_ms", drop=False)
+              for s in cfg.symbols}
     common = sorted(set.intersection(*(set(x.index) for x in enrich.values())))
     if len(common) < max(220, cfg.ema_slow + 3):
         raise ValueError("Insufficient common, contiguous history")
@@ -154,10 +161,16 @@ def backtest(history, cfg, days=None):
     beginning = common[0] + 200 * STEPS[cfg.timeframe]
     if days:
         beginning = max(beginning, common[-1] - days * 86_400_000)
+    if start_ms is not None:
+        beginning = max(beginning, int(start_ms))
+    if end_ms is not None and int(end_ms) <= beginning:
+        raise ValueError("Empty backtest window")
     for i in range(1, len(common)):
         ts = common[i]
         if ts < beginning:
             continue
+        if end_ms is not None and ts >= int(end_ms):
+            break
         when = pd.to_datetime(ts, unit="ms", utc=True).isoformat()
         for sym in sorted(cfg.symbols):
             account.prices[sym] = float(rows[sym].iloc[i].open)
@@ -176,7 +189,11 @@ def backtest(history, cfg, days=None):
                 exited.add(sym)
         # Allocate equal cash reservation for simultaneous entries; stable symbol order.
         # Same-bar exits must not re-enter, even if an unrelated buy flag exists.
-        candidates = [s for s in sorted(cfg.symbols) if s not in account.positions and bool(rows[s].iloc[i-1].buy_signal) and s not in exited]
+        # On a fresh OOS account, never execute a signal from the training split.
+        previous_is_in_window = (start_ms is None or common[i-1] >= beginning)
+        candidates = [s for s in sorted(cfg.symbols) if s not in account.positions
+                      and bool(rows[s].iloc[i-1].buy_signal)
+                      and s not in exited and previous_is_in_window]
         budget = account.cash / len(candidates) if candidates else 0
         for sym in candidates:
             account.buy(sym, when, float(rows[sym].iloc[i].open), float(rows[sym].iloc[i-1].atr), cfg, cash_cap=budget)
