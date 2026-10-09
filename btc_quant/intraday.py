@@ -105,6 +105,14 @@ def run_arm(df: pd.DataFrame, cfg: Config, arm: str, *,
     def close(when, raw, reason):
         nonlocal current
         update_excursion(float(raw))
+        trailing = arm == "E_trailing" and bool(current and current.get("trail_active"))
+        if arm == "E_trailing" and reason in ("stop_loss", "gap_stop"):
+            detailed_reason = "trailing_stop" if trailing else "initial_stop"
+            if reason == "gap_stop":
+                detailed_reason += "_gap"
+        else:
+            detailed_reason = reason
+        # Keep the underlying Account trade reason and fills unchanged.
         book.sell("BTC/USDT", when, float(raw), cfg, reason)
         if current is None:
             raise AssertionError("Exit with missing diagnostic record")
@@ -112,7 +120,7 @@ def run_arm(df: pd.DataFrame, cfg: Config, arm: str, *,
         detail.append({**t, **{k: v for k, v in current.items() if k != "highest_complete_high"},
                        "hold_hours": (pd.Timestamp(when) - pd.Timestamp(t["entry_time"])).total_seconds() / 3600,
                        "net_trade_return_pct": 100 * t["pnl_usdt"] / current["entry_cost"],
-                       "exit_reason": reason, "arm": arm})
+                       "exit_reason": reason, "exit_reason_detail": detailed_reason, "arm": arm})
         current = None
 
     for i in range(1, len(ts)):
@@ -147,7 +155,7 @@ def run_arm(df: pd.DataFrame, cfg: Config, arm: str, *,
                            "entry_cost": float(pos.entry_cost),
                            "initial_stop": float(pos.stop),
                            "mfe_pct_observed": 0.0, "mae_pct_observed": 0.0,
-                           "highest_complete_high": float(bar.open)}
+                           "highest_complete_high": float(bar.open), "trail_active": False}
                 if arm == "E_trailing":
                     pos.take = float("inf")  # research-only, removes fixed take
         trigger = book.protective_exit("BTC/USDT", float(bar.open), float(bar.high), float(bar.low))
@@ -163,6 +171,8 @@ def run_arm(df: pd.DataFrame, cfg: Config, arm: str, *,
                 if pd.notna(bar.atr):
                     # New stop is active only on NEXT bar, never retroactively.
                     pos.stop = max(pos.stop, current["highest_complete_high"] - 3 * float(bar.atr))
+                    if pos.stop > current["initial_stop"] + 1e-9:
+                        current["trail_active"] = True
         book.prices["BTC/USDT"] = float(bar.close)
         before = book.halted
         book.mark(_iso(t + step - 1), cfg)
