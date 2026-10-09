@@ -148,3 +148,55 @@ intrabar exit candle; they may therefore understate the true excursions.
 
 Run checks with `python -m pytest -q`. The synthetic smoke test data are not
 investment-performance evidence.
+
+
+## v0.2.3 BTC-only 4h cost robustness (research-only)
+
+Run after v0.2.2 historical data caching. Uses the exact same A/B/C/D/E
+rules, **no combination**, and never modifies the `paper` simulator:
+
+```bash
+python -m btc_quant.robustness \
+  --csv-dir data/market \
+  --train-days 180 --test-days 60 --step-days 60 \
+  --output-dir outputs/btc-robustness-v023
+```
+
+The script runs all five arms on the same non-overlapping chronological
+60-day fresh-account test windows under three **pre-specified** *per-side*
+fee/slippage assumptions: `zero_cost_upper_bound` (0/0 basis points,
+**not executable**), `configured` (default 10/5 bps), and `stress_2x`
+(default 20/10 bps). It runs the execution engine anew for each scenario:
+account sizing and minimum-notional decisions may change with fees.
+
+Files:
+- `cost_fold_comparison.csv`: one row per scenario/fold/arm; original
+  mark-to-market net return, hypothetical final-liquidation-adjusted return,
+  remaining open position count, separate fees/slippage, drawdown, first
+  risk halt, and paired percentage-point improvement versus A in the *same*
+  fold and cost scenario.
+- `cost_paired_summary.csv`: mean/median liquidation-adjusted return and
+  paired differences, improved/worse/tied fold counts, no-closed-trade fold
+  count, closed trades, worst fold and worst drawdown.
+- `methodology.json`: fixed scenarios, existing sizing/risk settings and
+  explicit limitations.
+
+`liquidation_net_return_pct` is a **diagnostic**: it marks an open position at
+the last known close, then subtracts assumed exit-side fee and slippage once.
+It neither executes liquidation nor accounts for future overnight gaps,
+liquidity, variable spreads or unavailable order types. It MUST NOT be
+combined with mark-to-market return as additional profit or loss.
+
+v0.2.3 also adds `exit_reason_detail` to `intraday_study`'s detailed trade
+records, distinguishing original stop from a subsequently activated ATR
+trailing stop (`initial_stop`, `trailing_stop`, with `_gap` when appropriate).
+Existing `reason`, `exit_reason`, trade fills, account state and paper behavior
+remain unchanged. **All previous trade P&L remains comparable.**
+
+These are **exploratory** tests on repeatedly viewed historical data. There
+are only nine ~60-day windows in the user example; those windows are not
+independent samples from a stationary return distribution, and pairing does
+not establish statistical significance or forward profitability. Do not pick
+a winning parameter based on the same test folds and call them untouched
+OOS. Retain a wholly future period for forward paper validation. Each fold
+starts a fresh account; do not compound the fold returns as a live portfolio.
