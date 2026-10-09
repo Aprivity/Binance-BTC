@@ -1,4 +1,4 @@
-# Binance-BTC — BTC/ETH Spot Research v0.2.1
+# Binance-BTC — BTC/ETH Spot Research v0.2.2
 
 Python-based **read-only** BTC/USDT and ETH/USDT spot OHLCV research, EMA crossover backtests and forward-only simulated trading. **No live trading, order APIs, credentials or withdrawals.** The application reads public Binance spot endpoints only; CCXT is an optional market-data adapter.
 
@@ -91,3 +91,60 @@ Output directory defaults to `outputs/compare-v021`:
 * This comparison **does not search parameter grids**, implement walk-forward retraining, provide trading recommendations, or validate market performance outside your downloaded data. Reviewing the holdout and repeatedly changing strategies would invalidate that holdout. For further iteration, reserve newer unseen data.
 * Data are public spot OHLCV; **no trading keys, order placement, futures, shorting, or leverage**. Trading fees and fills are estimates. Always inspect `trades.csv` and a truly untouched later window before drawing conclusions.
 
+
+## BTC-only 4h single-factor intraday research (v0.2.2)
+
+This module is **research-only**. Existing `backtest`, `compare`, and `paper` commands
+are unchanged; `paper` continues to use the legacy EMA9/21 signals. No live orders,
+leverage, shorts, API keys or exchange account access are implemented.
+
+With locally downloaded BTC 4-hour *closed* candles (`data/market/BTCUSDT_4h.csv`):
+
+```bash
+python -m btc_quant intraday-study \
+  --symbols BTC/USDT --interval 4h \
+  --csv-dir data/market \
+  --train-days 180 --test-days 60 --step-days 60 \
+  --output-dir outputs/btc-intraday-v022
+```
+
+Five mutually exclusive research arms, one changed factor versus A each:
+
+- `A_base`: original EMA9/21 cross above EMA200 + original ATR exits.
+- `B_slope`: A's entries additionally require `EMA200[t] > EMA200[t-6]`.
+- `C_adx`: A's entries additionally require Wilder-style `ADX14 > 20`.
+- `D_pullback`: **only the entry** changes to a trend-aligned pullback: EMA9>EMA21,
+  price>EMA200, previous bar low touching EMA21, green rising bar closing above EMA21.
+  Entries trigger at the next 4h open; exits are identical to A.
+- `E_trailing`: A's entry remains unchanged; its fixed 3×ATR take-profit is
+  replaced by a **3×ATR trailing stop**, updated *after* each completed candle,
+  active no earlier than the next candle. Original 2×ATR initial stop remains.
+
+All five arms share the same `Account` cash/position sizing, entry/exit execution,
+0.10% per-side fee, 0.05% per-side slippage, 1%-risk sizing, exposure caps, and
+12% drawdown entry halt. Those settings are inherited from the CLI common flags;
+not optimized. Simultaneous stop/target touches follow existing pessimistic
+bar-order assumptions. Entry/exit fill results are simulated, not guaranteed.
+
+Reports saved to `outputs/btc-intraday-v022/`:
+
+- `fold_metrics.csv`: per-fold train/test return, drawdown, fees and **halted_at_utc**.
+- `oos_summary.csv`: per-arm reset-window comparison, worst fold and halt counts.
+- `trade_diagnostics.csv`: closed-trade timestamps, actual exit reason, fees-included
+  net P&L, holding hours, bar-observable MFE/MAE (entry-relative %).
+- `fold_equity.csv`: separately reset account equity and drawdown paths.
+- `oos_fold_returns.png`: each arm's chronological *test-fold* net returns.
+- `methodology.json`: explicit fixed settings, sampling, guardrails and caveats.
+
+**Interpretation:** each train/test fold starts a *fresh* simulated cash account,
+never carries forward cash, risk halt or open positions, and never executes an
+entry signal from the preceding window. Folds use prior historical candles only
+to warm up indicators. Test windows do not overlap (`step_days >= test_days`).
+This is rolling *historical* evaluation, not a single continuously traded equity
+curve or an untouched out-of-sample validation (we have already inspected past
+periods). Do **not** compound reset-fold returns into a portfolio return.
+MFE/MAE use fully completed bars only, excluding unknown path extremes on the
+intrabar exit candle; they may therefore understate the true excursions.
+
+Run checks with `python -m pytest -q`. The synthetic smoke test data are not
+investment-performance evidence.
