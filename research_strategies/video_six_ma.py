@@ -93,6 +93,10 @@ def _signals(df: pd.DataFrame, cfg, mode: str, opt: ResearchSettings) -> pd.Data
                   and closes[i] > opens[i]):
                 setup["stage"] = "broken"
                 setup["breakout_index"] = i
+                # This compression episode is consumed. A later setup must
+                # demonstrate a NEW run of min_compression_bars.
+                span = 0
+                block = []
                 continue
         if setup is not None and setup["stage"] == "broken":
             if i - setup["breakout_index"] > opt.zone_lifetime_bars:
