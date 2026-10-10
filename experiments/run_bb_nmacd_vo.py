@@ -88,6 +88,15 @@ def parse_funding(raw: pd.DataFrame) -> pd.DataFrame:
         time_col, rate_col = 1, 3 if raw.shape[1] >= 4 else 2
     result = pd.DataFrame({"funding_ms": timestamps(raw.iloc[:, time_col]),
                            "rate": pd.to_numeric(raw.iloc[:, rate_col], errors="raise")})
+    # Binance Vision funding calc_time is sometimes settlement+1 ms.
+    # Normalize ONLY <= 1 second precision offsets; reject genuine mismatch.
+    rounded = ((result.funding_ms.astype("int64") + BAR_MS // 2) // BAR_MS) * BAR_MS
+    offset = (result.funding_ms.astype("int64") - rounded).abs()
+    if (offset > 1000).any():
+        raise ValueError(f"Funding timestamp >1s from 15m boundary: {result.loc[offset > 1000, 'funding_ms'].head().tolist()}")
+    result["funding_ms"] = rounded
+    if result.funding_ms.duplicated().any():
+        raise ValueError("Duplicate funding settlement after timestamp normalization")
     if (not np.isfinite(result.rate).all()) or (result.rate.abs() > 0.03).any():
         raise ValueError("Invalid funding rates")
     return result
