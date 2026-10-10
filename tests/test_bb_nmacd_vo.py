@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from experiments.bb_nmacd_vo import BAR_MS, indicators, simulate
+from experiments.run_bb_nmacd_vo import parse_funding
 
 
 def candles(n=240, *, start=0):
@@ -85,3 +86,13 @@ def test_no_trades_no_profit_factor():
     tr, _, summary = simulate(simulated_frame(), zero_funding(), mode="fixed_2")
     assert tr.empty and summary["trades"] == 0
     assert summary["profit_factor"] is None
+
+
+def test_funding_archive_one_millisecond_timestamp_rounding():
+    raw = pd.DataFrame([["BTCUSDT", 1704067200001, 8, 0.0001]])
+    result = parse_funding(raw)
+    assert int(result.funding_ms.iloc[0]) == 1704067200000
+    assert result.rate.iloc[0] == pytest.approx(0.0001)
+    raw.iloc[0, 1] = 1704067202000
+    with pytest.raises(ValueError, match=">1s"):
+        parse_funding(raw)
