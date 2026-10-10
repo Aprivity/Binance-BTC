@@ -86,14 +86,13 @@ def test_48_hour_time_exit():
     one=simulate_tick(fresh_state(),x.iloc[:t],100.,at_after_bar(x,t-1))
     bought=simulate_tick(one,x.iloc[:t+1],101.,at_after_bar(x,t))
     # At the exact 48h deadline, there are now 12 more completed 4h bars.
-    when=at_after_bar(x,t+12)
     # The actual deadline is 48h after the entry BAR OPENS; the last closed
     # candle is the bar that opened at the deadline-4h.
     when=bought["position"]["deadline_ms"]+30_000
     bars=x[x.open_time_ms+STEP<=when]
     closed=simulate_tick(bought,bars,101.,when)
     assert closed["position"] is None
-    assert closed["events"][-1]["kind"] in ("PAPER_SELL","LATE_BAR_OBSERVED_NO_ENTRY")
+    assert sum(e["kind"]=="PAPER_SELL" for e in closed["events"])==1
     assert any(e.get("reason")=="time_48h" for e in closed["events"])
 
 
