@@ -269,7 +269,7 @@ def synthetic_tests():
     series=(np.arange(90)*4*3600*1000)+int(START.timestamp()*1000)
     seg=np.zeros(90,int)
     res=pick_events(mask,seg,series,START,TEST_START)
-    assert res.tolist()==[31,45,60],res
+    assert res.tolist()==[31,44,60],res  # entry(44)=45 is AFTER reserved exit bar index44
     # Reject broken contiguous price history:
     seg[42:]=1
     out=pick_events(mask,seg,series,START,TEST_START)
