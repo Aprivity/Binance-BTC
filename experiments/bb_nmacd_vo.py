@@ -99,7 +99,7 @@ def simulate(frame: pd.DataFrame, funding: pd.DataFrame, *, mode: str,
     if any(not np.isfinite(v) for v in rates.values()):
         raise ValueError("Non-finite funding rate")
     if any(int(k) % BAR_MS for k in rates):
-        raise ValueError("Funding timestamps must align to 15m candle opens")
+        raise ValueError(f"Funding timestamps not aligned: {[(int(k), int(k) % BAR_MS) for k in rates if int(k) % BAR_MS][:8]}")
 
     fee = fee_bps / 10000.0
     slip = slippage_bps / 10000.0
