@@ -214,7 +214,7 @@ def main():
     year_df=pd.DataFrame(yearly)
     for y in sorted(year_df.year.unique()):
         v=year_df[(year_df.year==y)&(year_df.source.isin(["baseline_original","combined"]))]
-        print("PIERCING_YEAR "+json.dumps(v.to_dict("records"),flush=True))
+        print("PIERCING_YEAR "+json.dumps(v.to_dict("records")),flush=True)
     pd.DataFrame(decomps).to_csv(OUT/"account_log_return_decomposition.csv",index=False)
     pd.DataFrame(by_sources).to_csv(OUT/"pattern_source_performance.csv",index=False)
     pd.DataFrame(yearly).to_csv(OUT/"yearly_source_performance.csv",index=False)
