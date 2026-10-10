@@ -1,0 +1,51 @@
+name: BTC dual-MA 200U historical study
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/btc-dual-ma-200u-20261010
+    paths:
+      - "research/**"
+      - "research_strategies/**"
+      - "btc_quant/**"
+      - ".github/workflows/dual-ma-study.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  historical-study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        interval: ["5m", "15m", "1h", "4h"]
+    name: Historical analysis (${{ matrix.interval }})
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Offline unit tests
+        run: python -m pytest -q tests/test_dual_ma.py
+      - name: Read-only public Binance BTC candles, 200U simulation
+        run: |
+          python -m research.dual_ma.study \
+            --interval "${{ matrix.interval }}" \
+            --days 365 \
+            --output-dir "outputs/dual-ma-200u/${{ matrix.interval }}"
+      - name: Save reproducible study artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-dual-ma-200u-${{ matrix.interval }}
+          path: outputs/dual-ma-200u/${{ matrix.interval }}/
+          if-no-files-found: warn
+          retention-days: 30
