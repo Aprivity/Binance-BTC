@@ -16,3 +16,325 @@ jobs:
         run: python -m pytest -q
       - name: Offline inert smoke test
         run: python -m btc_quant demo
+
+  candlestick_research:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned-range project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Real BTC spot candlestick event study
+        run: python -m experiments.candlestick_study
+      - name: Upload research outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-candlestick-study
+          path: outputs/candlestick-research/
+          if-no-files-found: warn
+
+  hold_time_paired:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Paired 12h vs 24h vs 48h morning-star comparison
+        run: python -m experiments.hold_time_comparison
+      - name: Upload comparison tables and methodology
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-fixed-hold-comparison
+          path: outputs/hold-time-comparison/
+          if-no-files-found: warn
+
+  fixed_bracket_comparison:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run matched-entry fixed TP SL study
+        run: python -m experiments.fixed_bracket_comparison
+      - name: Upload fixed bracket comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-fixed-tp-sl-comparison
+          path: outputs/fixed-bracket-comparison/
+          if-no-files-found: warn
+
+  event_noise_attribution:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Analyze entry events and outlier profit concentration
+        run: python -m experiments.event_noise_analysis
+      - name: Upload noise attribution tables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-noise-attribution
+          path: outputs/event-noise-analysis/
+          if-no-files-found: warn
+
+  top_strategy_tail_risk:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Analyze shortlisted BTC strategy tail risk and slippage
+        run: python -m experiments.top_strategy_tail_risk
+      - name: Upload risk research data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-top-strategy-tail-risk
+          path: outputs/top-strategy-risk/
+          if-no-files-found: warn
+
+  atr_risk_sized_comparison:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install analysis dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run paired ATR14 exit and 30pct risk-sized comparison
+        run: python -m experiments.atr_risk_sized_comparison
+      - name: Publish detailed risk and trade audit tables
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-atr14-risk-sized-study
+          path: outputs/atr-risk-sized-comparison/
+          if-no-files-found: warn
+
+  atr_stop_fixed_30pct:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install analysis requirements
+        run: python -m pip install -r requirements.txt
+      - name: Matched stop-only comparison with constant 30pct exposure
+        run: python -m experiments.atr_stop_fixed_allocation
+      - name: Upload stop-only comparison outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-atr-vs-static-stop-constant-30pct
+          path: outputs/atr-stop-fixed-30pct/
+          if-no-files-found: warn
+
+  double_star_sensitivity:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install offline research requirements
+        run: python -m pip install -r requirements.txt
+      - name: Study added two-star Morning Star ATR exit research
+        run: python -m experiments.double_star_sensitivity_study
+      - name: Upload pattern expansion research and individual trade audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-double-star-morningstar-study
+          path: outputs/double-star-morningstar/
+          if-no-files-found: warn
+
+  timeframe_atr15_comparison:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install historical study dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare 1h 4h 8h 1d original Morning Star ATR 1.5 at fixed 30pct exposure
+        run: python -m experiments.timeframe_atr15_comparison
+      - name: Upload period, trade, yearly and matched-month data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-timeframe-atr15-comparison
+          path: outputs/timeframe-atr15-comparison/
+          if-no-files-found: warn
+
+  morningstar_volume_ablation:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install study requirements
+        run: python -m pip install -r requirements.txt
+      - name: Research volume confirmation gates without future leakage
+        run: python -m experiments.morningstar_volume_ablation
+      - name: Upload volumetric candle signal results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-volume-ablation
+          path: outputs/morningstar-volume-ablation/
+          if-no-files-found: warn
+
+  morningstar_volume_profile_pilot:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent profile study dependencies
+        run: python -m pip install -r requirements.txt matplotlib
+      - name: Reconstruct pre-entry proxy Volume Profile and compare exact aggTrades days
+        run: python -m experiments.morningstar_volume_profile_pilot
+      - name: Upload detailed profile and price-volume diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-volume-profile-preentry-pilot
+          path: outputs/morningstar-volume-profile-pilot/
+          if-no-files-found: warn
+
+  eveningstar_short_futures_research:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 19
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install study dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare BTC futures short Evening Star vs long Morning Star
+        run: python -m experiments.eveningstar_short_futures_comparison
+      - name: Upload short long combined parameter comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-futures-eveningstar-short-vs-long
+          path: outputs/eveningstar-short-comparison/
+          if-no-files-found: warn
+
+  bullish_pattern_ensembles:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare independently defined bullish formations and OR combinations
+        run: python -m experiments.bullish_pattern_ensembles
+      - name: Upload account returns, phase/annual reports, and signal replacement audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-bullish-pattern-ensembles
+          path: outputs/bullish-pattern-ensembles/
+          if-no-files-found: warn
+
+  piercing_attribution:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install research dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Quantify Piercing incremental trades, displaced original signals, cost and market regime
+        run: python -m experiments.piercing_attribution
+      - name: Upload Piercing attribution reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-piercing-attribution
+          path: outputs/piercing-attribution/
+          if-no-files-found: warn
