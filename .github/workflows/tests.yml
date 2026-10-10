@@ -223,3 +223,26 @@ jobs:
           name: btc-timeframe-atr15-comparison
           path: outputs/timeframe-atr15-comparison/
           if-no-files-found: warn
+
+  morningstar_volume_ablation:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install study requirements
+        run: python -m pip install -r requirements.txt
+      - name: Research volume confirmation gates without future leakage
+        run: python -m experiments.morningstar_volume_ablation
+      - name: Upload volumetric candle signal results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-volume-ablation
+          path: outputs/morningstar-volume-ablation/
+          if-no-files-found: warn
