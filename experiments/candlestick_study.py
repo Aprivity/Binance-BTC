@@ -92,7 +92,7 @@ def sample_stats(df: pd.DataFrame, mask: np.ndarray, timeframe: str,
     fee = COST_BPS_SIDE / 1e4
     net = (sell*(1-fee))/(buy*(1+fee))-1
     gross = sell/buy-1
-    months = timestamps.to_period("M")
+    months = timestamps.dt.to_period("M").to_numpy()
     # Random placebo includes all valid entry points within each event's calendar month.
     # This controls broad month-level market regimes, not momentum or volatility.
     by_month = {}
