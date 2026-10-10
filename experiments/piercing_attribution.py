@@ -235,7 +235,7 @@ def main():
     }
     (OUT/"methodology.json").write_text(json.dumps(methodology,ensure_ascii=False,indent=2),encoding="utf8")
     print("PIERCING_ATTRIBUTION_COMPLETE "+json.dumps({"historical_bars":len(frame),
-        "feed_gaps":gap_count,"source_rows":len(by_sources),"year_rows":len(yearly)},flush=True))
+        "feed_gaps":gap_count,"source_rows":len(by_sources),"year_rows":len(yearly)}),flush=True)
 
 
 if __name__=="__main__":
