@@ -209,7 +209,7 @@ def month_paired_comparison(phase,name,baseline,test,phase_start,phase_end,rng):
     observed=abs(float(d.mean()))
     flips=rng.choice([-1,1],size=(BOOTSTRAP,len(d)))
     null=np.abs((flips*d).mean(axis=1))
-    p=(1+int(np.sum(null>=observed)))/(1+BOOTSTR)
+    p=(1+int(np.sum(null>=observed)))/(1+BOOTSTRAP)
     result={
         "phase":phase,
         "comparison":name+" minus original_three_star",
