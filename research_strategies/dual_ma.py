@@ -33,7 +33,7 @@ def calculate(frame: pd.DataFrame, params: Parameters) -> pd.DataFrame:
         slow = close.rolling(params.slow, min_periods=params.slow).mean()
     above = fast.gt(slow) & fast.notna() & slow.notna()
     confirmed = above.rolling(params.confirm_bars, min_periods=params.confirm_bars).sum().eq(params.confirm_bars)
-    buy = confirmed & ~confirmed.shift(1).fillna(False).astype(bool)
+    buy = confirmed & ~confirmed.shift(1, fill_value=False)
     sell = fast.lt(slow) & fast.notna() & slow.notna()
     return pd.DataFrame({"buy_signal": buy.astype(bool), "sell_signal": sell.astype(bool)}, index=frame.index)
 
