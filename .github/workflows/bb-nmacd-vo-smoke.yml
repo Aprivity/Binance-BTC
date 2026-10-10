@@ -32,6 +32,20 @@ jobs:
             --initial-cash 1000 --direction both \
             --fee-bps 5 --slippage-bps 2 --risk-pct 1 \
             --output-dir outputs/bb-nmacd-vo-smoke
+      - name: Full 2022-2026 September backtest (research, no orders)
+        run: |
+          python -m experiments.run_bb_nmacd_vo \
+            --start 2022-01-01 --end 2026-10-01 \
+            --initial-cash 1000 --direction both \
+            --fee-bps 5 --slippage-bps 2 --risk-pct 1 \
+            --output-dir outputs/bb-nmacd-vo-15m
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: btc-bb-nmacd-vo-2022-2026
+          path: outputs/bb-nmacd-vo-15m/
+          if-no-files-found: warn
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         if: always()
         with:
