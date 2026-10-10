@@ -200,3 +200,26 @@ jobs:
           name: btc-double-star-morningstar-study
           path: outputs/double-star-morningstar/
           if-no-files-found: warn
+
+  timeframe_atr15_comparison:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install historical study dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compare 1h 4h 8h 1d original Morning Star ATR 1.5 at fixed 30pct exposure
+        run: python -m experiments.timeframe_atr15_comparison
+      - name: Upload period, trade, yearly and matched-month data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-timeframe-atr15-comparison
+          path: outputs/timeframe-atr15-comparison/
+          if-no-files-found: warn
