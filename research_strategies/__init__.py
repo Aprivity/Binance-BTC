@@ -1,0 +1,1 @@
+"""Opt-in research strategies, never preloaded by the framework."""

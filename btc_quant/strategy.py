@@ -2,8 +2,11 @@
 from __future__ import annotations
 import importlib
 import importlib.util
+import hashlib
+import sys
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 
 def resolve_strategy(reference: str):
@@ -19,11 +22,24 @@ def resolve_strategy(reference: str):
         raise ValueError("Invalid strategy reference")
     if name.endswith(".py"):
         path = Path(name).resolve(strict=True)
-        spec = importlib.util.spec_from_file_location("_btc_explicit_strategy_plugin", path)
+        # Register under a path-stable module name before executing. Dataclasses,
+        # decorators and runtime type hints expect the module in sys.modules.
+        name_key = hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:16]
+        module_name = f"_btc_strategy_plugin_{name_key}"
+        spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
             raise ValueError("Cannot load strategy file")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        previous = sys.modules.get(module_name)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            if previous is None:
+                del sys.modules[module_name]
+            else:
+                sys.modules[module_name] = previous
+            raise
     else:
         module = importlib.import_module(name)
     fn = getattr(module, symbol, None)
@@ -62,4 +78,20 @@ def prepare_signals(frame: pd.DataFrame, cfg, signal_fn):
     tr = ranges.max(axis=1)
     out["atr"] = tr.ewm(alpha=1/cfg.atr_period, adjust=False,
                         min_periods=cfg.atr_period).mean()
+    # Optional research-only planned price bracket. Both fields are required
+    # together. A signal's limits are decided at the candle close and carried
+    # to the next open; the engine computes 3R (or other declared R) at entry.
+    fields = ("initial_stop_price", "reward_risk")
+    if any(field in supplied for field in fields):
+        if not all(field in supplied for field in fields):
+            raise ValueError("Explicit price bracket requires both initial_stop_price and reward_risk")
+        for field in fields:
+            try:
+                values = pd.to_numeric(supplied[field], errors="raise").to_numpy(dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid {field} numbers") from exc
+            active = out.buy_signal.to_numpy(dtype=bool)
+            if np.any(active & (~np.isfinite(values) | (values <= 0))):
+                raise ValueError(f"Positive finite {field} required for every entry signal")
+            out[field] = values
     return out
