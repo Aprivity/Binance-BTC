@@ -14,12 +14,70 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
+import requests
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from btc_quant.data import fetch
+from btc_quant.config import STEPS
+
+def fetch_gap_aware(timeframe: str):
+    """Fetch authentic public Binance spot bars; detect gaps and never impute them."""
+    step = STEPS[timeframe]
+    cursor = int(START.timestamp()*1000)
+    end_ms = int(END.timestamp()*1000)
+    url = "https://data-api.binance.vision/api/v3/klines"
+    session = requests.Session()
+    raw = []
+    while cursor < end_ms:
+        params = {"symbol":"BTCUSDT", "interval":timeframe,
+                  "startTime":cursor, "endTime":end_ms-1, "limit":1000}
+        for retry in range(4):
+            try:
+                r = session.get(url, params=params, timeout=25)
+                r.raise_for_status()
+                batch = r.json()
+                if not isinstance(batch, list):
+                    raise ValueError("Binance response must be a list of candles")
+                break
+            except (requests.RequestException, ValueError):
+                if retry == 3:
+                    raise
+                time.sleep(2**retry)
+        if not batch:
+            break
+        raw.extend(batch)
+        new_cursor = int(batch[-1][0]) + step
+        if new_cursor <= cursor:
+            raise RuntimeError("Stalled pagination")
+        cursor = new_cursor
+        time.sleep(0.04)
+    rows = []
+    for k in raw:
+        t = int(k[0])
+        if t < int(START.timestamp()*1000) or t + step > end_ms:
+            continue
+        rows.append((t,*[float(x) for x in k[1:6]],t+step-1))
+    cols = ["open_time_ms","open","high","low","close","base_volume","close_time_ms"]
+    df = pd.DataFrame(rows,columns=cols).sort_values("open_time_ms").reset_index(drop=True)
+    if df.empty or df.open_time_ms.duplicated().any():
+        raise RuntimeError("Empty or duplicate raw Binance candles")
+    values = df[["open","high","low","close","base_volume"]].to_numpy()
+    if (not np.isfinite(values).all() or (values[:,:4] <= 0).any()
+        or (values[:,4] < 0).any() or (df.high < df[["open","low","close"]].max(axis=1)).any()
+        or (df.low > df[["open","high","close"]].min(axis=1)).any()
+        or (df.open_time_ms % step != 0).any()):
+        raise RuntimeError("Invalid raw Binance OHLCV")
+    delta = df.open_time_ms.diff().fillna(step)
+    if (delta <= 0).any() or (delta % step != 0).any():
+        raise RuntimeError("Irregular Binance timestamp intervals")
+    gaps = (delta != step).to_numpy()
+    if np.sum(gaps) > max(100, 0.002*len(df)):
+        raise RuntimeError("Too many Binance gaps to study safely")
+    segments = np.cumsum(gaps)
+    return df, int(np.sum(gaps)), segments
 
 START = pd.Timestamp("2020-01-01", tz="UTC")
 TEST_START = pd.Timestamp("2024-01-01", tz="UTC")
@@ -74,13 +132,15 @@ def thin(indices: np.ndarray, horizon: int) -> np.ndarray:
 
 
 def sample_stats(df: pd.DataFrame, mask: np.ndarray, timeframe: str,
-                 pattern: str, horizon: int, phase: str, rng: np.random.Generator) -> dict:
+                 pattern: str, horizon: int, phase: str, rng: np.random.Generator, segments: np.ndarray) -> dict:
     # A signal at index i fills at open[i+1] and exits at open[i+1+h].
     n = len(df)
     opens = df.open.to_numpy(float)
     timestamps = pd.to_datetime(df.open_time_ms, unit="ms", utc=True)
     valid_idx = np.flatnonzero(mask & (np.arange(n) + 1 + horizon < n)
                                & (np.arange(n) >= 30))
+    # Exclude every trade whose 20-bar pattern history or full holding window crosses a feed gap.
+    valid_idx = valid_idx[segments[valid_idx-20] == segments[valid_idx+1+horizon]]
     events = thin(valid_idx, horizon)
     if not len(events):
         return dict(timeframe=timeframe, pattern=pattern, horizon=horizon, phase=phase,
@@ -95,11 +155,12 @@ def sample_stats(df: pd.DataFrame, mask: np.ndarray, timeframe: str,
     months = timestamps.dt.to_period("M").to_numpy()
     # Random placebo includes all valid entry points within each event's calendar month.
     # This controls broad month-level market regimes, not momentum or volatility.
+    all_candidates = np.arange(n, dtype=int)
+    all_candidates = all_candidates[(all_candidates >= 30) & (all_candidates + 1 + horizon < n)]
+    all_candidates = all_candidates[segments[all_candidates-20] == segments[all_candidates+1+horizon]]
     by_month = {}
     for month in sorted(set(months[events])):
-        eligible = np.flatnonzero((months == month)
-                                  & (np.arange(n) >= 30)
-                                  & (np.arange(n) + 1 + horizon < n))
+        eligible = all_candidates[months[all_candidates] == month]
         by_month[month] = eligible
     month_counts = {month: int(np.sum(months[events] == month)) for month in by_month}
     null = np.empty(NULL_DRAWS, dtype=float)
@@ -139,7 +200,7 @@ def main() -> None:
     for timeframe in TIMEFRAMES:
         print(f"FETCH_START timeframe={timeframe}", flush=True)
         # 2550d covers Jan 2020 for run date Oct 2026; cache only in current runner.
-        df = fetch("BTC/USDT", timeframe, days=2550)
+        df, gap_count, segments = fetch_gap_aware(timeframe)
         stamp = pd.to_datetime(df.open_time_ms, unit="ms", utc=True)
         df = df.loc[(stamp >= START) & (stamp < END)].reset_index(drop=True)
         stamp = pd.to_datetime(df.open_time_ms, unit="ms", utc=True)
@@ -148,7 +209,9 @@ def main() -> None:
         if len(df) < 1000:
             raise RuntimeError(f"Suspiciously short history for {timeframe}: {len(df)}")
         source.append({"timeframe":timeframe,"rows":len(df),"first":stamp.iloc[0].isoformat(),
-                       "last":stamp.iloc[-1].isoformat(),"source":"Binance public spot klines"})
+                       "last":stamp.iloc[-1].isoformat(),"source":"Binance public spot klines",
+                       "missing_intervals":int((df.open_time_ms.diff().fillna(STEPS[timeframe]) / STEPS[timeframe] - 1).sum()),
+                       "gap_spans":gap_count})
         print(f"DATA_OK {source[-1]}", flush=True)
         pattern_map = signals(df)
         for phase, phase_start, phase_end in (
@@ -159,7 +222,7 @@ def main() -> None:
             for pattern in PATTERNS:
                 for h in HORIZONS:
                     r = sample_stats(df, pattern_map[pattern] & phase_mask,
-                                     timeframe, pattern, h, phase, rng)
+                                     timeframe, pattern, h, phase, rng, segments)
                     records.append(r)
                     if h == 6:
                         print("RESULT " + json.dumps(r, ensure_ascii=False), flush=True)
