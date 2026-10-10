@@ -287,8 +287,8 @@ def main():
     masks=detect(f)
     atr=wilder_atr(f.high.to_numpy(float),f.low.to_numpy(float),
                    f.close.to_numpy(float),seg)
-    if not np.isfinite(atr[30:]).all():
-        raise RuntimeError("Wilder ATR unavailable")
+    # ATR intentionally stays undefined at the beginning of each real-data
+    # contiguous segment after an OHLCV gap; per-signal strict validity below.
     outputs=[];trades=[];years=[];raw_count=[];phase_bases={}
     for phase,start,end in (("development_2020_2023",START,TEST_START),
                             ("inspected_2024_2026",TEST_START,END)):
