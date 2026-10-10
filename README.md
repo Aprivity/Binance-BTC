@@ -200,3 +200,32 @@ not establish statistical significance or forward profitability. Do not pick
 a winning parameter based on the same test folds and call them untouched
 OOS. Retain a wholly future period for forward paper validation. Each fold
 starts a fresh account; do not compound the fold returns as a live portfolio.
+
+## Cross-asset BTC prediction research (independent branch)
+
+Tests whether **daily** Nasdaq-100 (`^NDX`), dollar index (`DX-Y.NYB`), continuous
+gold futures (`GC=F`), and official CBOE VIX add predictive information for BTC's
+next **4h / 24h** open-to-open returns. Daily observations become eligible only
+after next-day 00:01 New York, and are sampled once per NDX session at the next
+4h boundary. This is **not intraday NQ-futures research**.
+
+```bash
+python -m btc_quant.cross_asset_data --start 2023-01-01 --end 2026-10-10T00:00:00
+python -m btc_quant.cross_asset --directory data/market/cross-asset
+python -m btc_quant.cross_asset_report
+python -m pytest -q
+```
+
+Fixed ridge models use train-only scaling, rolling 180-day training / 60-day
+non-overlapping tests, purged training labels, and a BTC-only baseline. Primary
+paired MAE tests use a block bootstrap and Holm correction over 10 comparisons.
+Separate fixed-exposure, roundtrip-cost toy trades are **not** the EMA/risk engine.
+No changes to `paper`, trading rules or live integrations.
+
+The first run found **no incremental predictive improvement**: joint-model
+4h / 24h direction accuracy was **49.20% / 49.39%**, below the same samples'
+always-up baseline (**54.10% / 54.29%**), and MAE increased versus BTC-only.
+This is exploratory historical evidence for this data/model specification,
+not a universal impossibility result or untouched future validation.
+
+See the [Chinese research report, predictions and audit tables](docs/research/cross-asset/README.md).

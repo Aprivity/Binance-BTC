@@ -1,0 +1,9 @@
+horizon_hours,asset,samples,corr_with_trailing_btc_24h_logreturn,corr_with_future_btc_return,interpretation
+4,ndx,941,0.28589112996165433,0.011385696945936701,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+4,dxy,941,-0.10660750631522907,-0.07121844838697701,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+4,gold,941,0.056390867526991385,0.03912196725616061,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+4,vix,941,-0.2577343566148083,0.01822810518819022,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+24,ndx,940,0.2858668891987515,-0.05111491227680593,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+24,dxy,940,-0.1066618983622096,-0.06060224901379237,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+24,gold,940,0.056443784803503164,0.007374438899231287,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
+24,vix,940,-0.25768924807216675,0.0322173364949978,"Full-sample exploratory correlation, not independent OOS or exact synchronized session correlation"
