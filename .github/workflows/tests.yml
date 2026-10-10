@@ -39,3 +39,26 @@ jobs:
           name: btc-candlestick-study
           path: outputs/candlestick-research/
           if-no-files-found: warn
+
+  hold_time_paired:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/research/btc-candlestick-baselines-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Paired 12h vs 24h vs 48h morning-star comparison
+        run: python -m experiments.hold_time_comparison
+      - name: Upload comparison tables and methodology
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: btc-morningstar-fixed-hold-comparison
+          path: outputs/hold-time-comparison/
+          if-no-files-found: warn
