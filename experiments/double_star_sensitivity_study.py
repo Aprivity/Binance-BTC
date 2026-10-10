@@ -198,7 +198,7 @@ def month_log_growth(trades,months):
 def month_paired_comparison(phase,name,baseline,test,phase_start,phase_end,rng):
     # Includes non-trading months in both arms; compare growth across identical
     # calendar months. No resampling of individual correlated trade outcomes.
-    months=pd.period_range(phase_start.to_period("M"),(phase_end-pd.Timedelta(days=1)).to_period("M"),freq="M").astype(str).tolist()
+    months=pd.period_range(start=phase_start.strftime("%Y-%m"),end=(phase_end-pd.Timedelta(days=1)).strftime("%Y-%m"),freq="M").astype(str).tolist()
     ba=month_log_growth(baseline,months)
     ne=month_log_growth(test,months)
     d=ne-ba
@@ -207,7 +207,7 @@ def month_paired_comparison(phase,name,baseline,test,phase_start,phase_end,rng):
     # Mean *monthly* difference in log return, percentage points; not CAGR.
     ci=np.quantile(samples,[.025,.975])
     observed=abs(float(d.mean()))
-    flips=rng.choice([-1,1],size=(BOOTSTR,len(d)))
+    flips=rng.choice([-1,1],size=(BOOTSTRAP,len(d)))
     null=np.abs((flips*d).mean(axis=1))
     p=(1+int(np.sum(null>=observed)))/(1+BOOTSTR)
     result={
