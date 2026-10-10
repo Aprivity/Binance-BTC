@@ -1,0 +1,41 @@
+name: BTC BB NMACD VO archive smoke
+on:
+  push:
+    branches: [research/btc-bb-nmacd-vo-15m]
+    paths:
+      - '.github/workflows/bb-nmacd-vo-smoke.yml'
+      - 'experiments/bb_nmacd_vo.py'
+      - 'experiments/run_bb_nmacd_vo.py'
+      - 'tests/test_bb_nmacd_vo.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: python -m pip install -r requirements-dev.txt
+      - name: Test pure offline research engine
+        run: python -m pytest -q tests/test_bb_nmacd_vo.py
+      - name: Download completed Jan 2024 futures month and run all 3 exit modes
+        run: |
+          python -m experiments.run_bb_nmacd_vo \
+            --start 2024-01-01 --end 2024-02-01 \
+            --initial-cash 1000 --direction both \
+            --fee-bps 5 --slippage-bps 2 --risk-pct 1 \
+            --output-dir outputs/bb-nmacd-vo-smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: btc-bb-nmacd-vo-jan2024
+          path: outputs/bb-nmacd-vo-smoke/
+          if-no-files-found: warn
+          retention-days: 30
