@@ -1,0 +1,186 @@
+{
+  "research_version": "cross-asset-0.1",
+  "inputs_sha256": {
+    "BTCUSDT_4h.csv": "2029aed702465346dd294e4c97af75cbabbfebcb0aad6ca6083cf0ead8a20e5f",
+    "ndx_daily.csv": "311581a9661b3e8995cbabceaac80aa1f8fecd6b330309d1697879dcd4761bac",
+    "dxy_daily.csv": "cb4ebc6f573c113a976cf9f3e42337049290db5fa8cc4b804a974f5dd531930b",
+    "gold_daily.csv": "53a3a8a0dfe83039ecfed3e731917f7f9bbd4e8b520b93ab21ac8f67f25700c7",
+    "vix_daily.csv": "13c001473b6492fec1356ab5021359ab11e47c827d7e3aa4c2d89e159a60f773"
+  },
+  "download_manifest": {
+    "retrieved_at_utc": "2026-10-10T01:53:01.474675+00:00",
+    "start": "2023-01-01",
+    "end_exclusive_utc": "2026-10-10T00:00:00+00:00",
+    "inputs": {
+      "ndx": {
+        "symbol": "^NDX",
+        "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?period1=1640995200&period2=1791590400&interval=1d",
+        "rows": 1196,
+        "first_date": "2022-01-03",
+        "last_date": "2026-10-08",
+        "sha256": "311581a9661b3e8995cbabceaac80aa1f8fecd6b330309d1697879dcd4761bac",
+        "raw_sha256": "b3b35f6d098d6636b6dc3e8951ede514a142c20a1499cc7a3a968a595f6608bf"
+      },
+      "dxy": {
+        "symbol": "DX-Y.NYB",
+        "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?period1=1640995200&period2=1791590400&interval=1d",
+        "rows": 1198,
+        "first_date": "2022-01-03",
+        "last_date": "2026-10-08",
+        "sha256": "cb4ebc6f573c113a976cf9f3e42337049290db5fa8cc4b804a974f5dd531930b",
+        "raw_sha256": "7eb3ae8125b23e741f0f2a9f10d4b7199e3cdcf1a3a59133368af939fdc2e766"
+      },
+      "gold": {
+        "symbol": "GC=F",
+        "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?period1=1640995200&period2=1791590400&interval=1d",
+        "rows": 1199,
+        "first_date": "2022-01-03",
+        "last_date": "2026-10-08",
+        "sha256": "53a3a8a0dfe83039ecfed3e731917f7f9bbd4e8b520b93ab21ac8f67f25700c7",
+        "raw_sha256": "5a75ac13c8199704318a9e516165768e3b533c1a6b7fbe4efecc52e646919d44"
+      },
+      "vix": {
+        "symbol": "CBOE VIX",
+        "source_url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
+        "rows": 1229,
+        "first_date": "2022-01-03",
+        "last_date": "2026-10-08",
+        "sha256": "13c001473b6492fec1356ab5021359ab11e47c827d7e3aa4c2d89e159a60f773",
+        "raw_sha256": "51ea1e59bfeaf400f6816300c39145df5e3fb437e7c60bdb8ca2178f8c96f436"
+      },
+      "btc": {
+        "symbol": "BTC/USDT",
+        "source_url": "https://data-api.binance.vision/api/v3/klines",
+        "rows": 8268,
+        "first_open_utc": "2023-01-01T00:00:00+00:00",
+        "last_open_utc": "2026-10-09T20:00:00+00:00",
+        "sha256": "2029aed702465346dd294e4c97af75cbabbfebcb0aad6ca6083cf0ead8a20e5f"
+      }
+    },
+    "availability_policy": "Daily session date becomes eligible at next calendar day 00:01 America/New_York; first subsequent 4h BTC boundary. Historical vendor revisions are not point-in-time vintages."
+  },
+  "runtime": {
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "pandas": "2.3.3"
+  },
+  "availability": "Session date eligible next calendar day 00:01 America/New_York; backward-asof max age 96h; one entry on first eligible 4h boundary per NDX session, normally 08:00 UTC. No weekend repeat observations.",
+  "targets": "BTC/USDT next open to open after 4h / 24h. BTC predictors end on preceding completed candle.",
+  "assets": {
+    "ndx": "Yahoo ^NDX daily index; NOT NQ futures",
+    "dxy": "Yahoo DX-Y.NYB dollar index",
+    "gold": "Yahoo GC=F continuous gold futures proxy; NOT XAU spot; rolls can contaminate returns",
+    "vix": "CBOE daily VIX CLOSE"
+  },
+  "features": {
+    "btc_only": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d"
+    ],
+    "btc_plus_ndx": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d",
+      "ndx_r1",
+      "ndx_r5",
+      "ndx_vol20",
+      "ndx_age_hours"
+    ],
+    "btc_plus_dxy": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d",
+      "dxy_r1",
+      "dxy_r5",
+      "dxy_vol20",
+      "dxy_age_hours"
+    ],
+    "btc_plus_gold": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d",
+      "gold_r1",
+      "gold_r5",
+      "gold_vol20",
+      "gold_age_hours"
+    ],
+    "btc_plus_vix": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d",
+      "vix_r1",
+      "vix_r5",
+      "vix_vol20",
+      "vix_age_hours"
+    ],
+    "btc_plus_all": [
+      "btc_r4h",
+      "btc_r24h",
+      "btc_r7d",
+      "btc_vol7d",
+      "ndx_r1",
+      "ndx_r5",
+      "ndx_vol20",
+      "ndx_age_hours",
+      "dxy_r1",
+      "dxy_r5",
+      "dxy_vol20",
+      "dxy_age_hours",
+      "gold_r1",
+      "gold_r5",
+      "gold_vol20",
+      "gold_age_hours",
+      "vix_r1",
+      "vix_r5",
+      "vix_vol20",
+      "vix_age_hours"
+    ]
+  },
+  "ridge_alpha": 10.0,
+  "train_days": 180,
+  "test_days": 60,
+  "training_policy": "Rolling train-only standardization and fixed ridge alpha; purge any training label whose endpoint is >= test boundary. Last partial test window retained only with >=20 observations; >=90 train observations.",
+  "primary_endpoint": "Paired OOS absolute error improvement vs BTC-only ridge. Circular 10-observation block bootstrap 95% CI, null-centered two-sided approximate p; Holm correction over all 5 additions x 2 horizons. Other metrics descriptive.",
+  "bootstrap_repeats": 2000,
+  "bootstrap_seed": 20261010,
+  "toy_execution": {
+    "description": "Separate long/cash fixed 30% exposure simulation for each horizon/model; enter only when predicted simple return exceeds modeled roundtrip breakeven. Nonoverlapping open/open trades. No existing EMA stops, risk sizing or halt; no leverage/shorts. Diagnostic only, not a replacement strategy.",
+    "fee_bps_per_side": 10,
+    "slippage_bps_per_side": 5
+  },
+  "timing": {
+    "4": {
+      "aligned_samples": 941,
+      "folds": 20,
+      "first_sample_utc": "2023-01-10T08:00:00+00:00",
+      "last_sample_utc": "2026-10-09T08:00:00+00:00",
+      "oos_samples": 817,
+      "first_oos_utc": "2023-07-11T08:00:00+00:00",
+      "last_oos_utc": "2026-10-09T08:00:00+00:00"
+    },
+    "24": {
+      "aligned_samples": 940,
+      "folds": 20,
+      "first_sample_utc": "2023-01-10T08:00:00+00:00",
+      "last_sample_utc": "2026-10-08T08:00:00+00:00",
+      "oos_samples": 816,
+      "first_oos_utc": "2023-07-11T08:00:00+00:00",
+      "last_oos_utc": "2026-10-08T08:00:00+00:00"
+    }
+  },
+  "limitations": [
+    "Exploratory historical rolling holdouts, not untouched future data; previous development inspected overlapping history.",
+    "Current vendor snapshots are not timestamped point-in-time vintages. Availability lag reduces look-ahead but cannot prove historical publication/revision timing.",
+    "Daily observations cannot answer whether contemporaneous intraday NQ/DXY/VIX signals lead BTC within the same trading session.",
+    "Daily sampling conditional on NDX sessions omits most weekends and uses mainly one UTC hour; not all 24/7 market conditions.",
+    "Gold futures roll changes, vendor anomalies and source discrepancies need separate checks before trading use.",
+    "Block-bootstrap inference assumes approximate local dependence; structural changes and fold fitting dependence can make intervals optimistic. No causal claim.",
+    "Modeling fees/slippage does not guarantee executable fills; toy return is not EMA strategy return. Do not pool horizons/models."
+  ]
+}
