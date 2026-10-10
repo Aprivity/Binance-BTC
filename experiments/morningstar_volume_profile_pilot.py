@@ -235,7 +235,7 @@ def correlation_and_median(frame,feature,phase,days):
     ok=np.isfinite(vals)&np.isfinite(ret)
     n=int(ok.sum())
     if n<8:return {"phase":phase,"days":days,"feature":feature,"n":n,"too_few":True}
-    rank_corr=float(pd.Series(vals[ok]).corr(pd.Series(ret[ok]),method="spearman"))
+    rank_corr=float(np.corrcoef(pd.Series(vals[ok]).rank(method="average").to_numpy(),pd.Series(ret[ok]).rank(method="average").to_numpy())[0,1])
     median=float(np.median(vals[ok]))
     a=ret[ok&(vals<median)]
     b=ret[ok&(vals>=median)]
