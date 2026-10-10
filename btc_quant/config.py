@@ -2,7 +2,7 @@
 from dataclasses import dataclass, asdict
 
 SYMBOLS = ("BTC/USDT",)
-STEPS = {"1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
+STEPS = {"5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
 
 
 @dataclass(frozen=True)
