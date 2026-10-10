@@ -239,12 +239,21 @@ def correlation_and_median(frame,feature,phase,days):
     median=float(np.median(vals[ok]))
     a=ret[ok&(vals<median)]
     b=ret[ok&(vals>=median)]
+    reasons=frame["trade_exit_reason"].to_numpy(dtype=object)
+    split_low=ok&(vals<median)
+    split_high=ok&(vals>=median)
+    def rate(mask,outcome):
+        return round(float(100*np.mean(np.isin(reasons[mask],outcome))),2) if int(mask.sum()) else None
     return {
         "phase":phase,"window_days":days,"feature":feature,
         "valid_pairs":n,"observed_spearman":round(rank_corr,4),
         "median_threshold_descriptive_only":round(median,5),
         "below_median_n":int(len(a)),
         "above_or_equal_median_n":int(len(b)),
+        "below_median_takeprofit_rate_pct":rate(split_low,["take_profit"]),
+        "above_median_takeprofit_rate_pct":rate(split_high,["take_profit"]),
+        "below_median_stop_rate_pct":rate(split_low,["stop_loss","gap_stop"]),
+        "above_median_stop_rate_pct":rate(split_high,["stop_loss","gap_stop"]),
         "below_median_mean_net_pct":round(float(a.mean()),4) if len(a) else None,
         "above_median_mean_net_pct":round(float(b.mean()),4) if len(b) else None,
         "WARNING":"Descriptive within-period median splits, NOT trade filters or independent predictive evidence"
@@ -453,6 +462,30 @@ def main():
         ax.legend(loc="best")
         fig.tight_layout()
         fig.savefig(OUT/"sample_7d_volume_profile_PROXY.png",dpi=135)
+        plt.close(fig)
+        # Price-vs-time volume heatmap using only historical 5m volume,
+        # still PROXY price placement; each x bucket is one UTC hour.
+        local_ref=float(ex["signal_close"])
+        begin=int(pd.Timestamp(ex["signal_confirmed_utc"]).timestamp()*1000)-7*86_400_000
+        hours=(small.open_ms.to_numpy(dtype=np.int64)-begin)/3_600_000.
+        ybins=np.floor(np.log(p/local_ref)/BIN_LOG).astype(np.int64)
+        lo_bin=int(ybins.min()); hi_bin=int(ybins.max())
+        time_bins=np.floor(hours).astype(np.int64)
+        mat=np.zeros((hi_bin-lo_bin+1,7*24),float)
+        np.add.at(mat,(ybins-lo_bin,time_bins),small.volume.to_numpy(float))
+        y_low=local_ref*np.exp(lo_bin*BIN_LOG)
+        y_high=local_ref*np.exp((hi_bin+1)*BIN_LOG)
+        fig,ax=plt.subplots(figsize=(11.5,5.6))
+        im=ax.imshow(np.log1p(mat),origin="lower",aspect="auto",
+                interpolation="nearest",
+                extent=(-168,0,y_low,y_high))
+        ax.axhline(local_ref,ls="--",lw=1.2,color="white")
+        ax.set_xlabel("Hours before 4h Morning Star confirmation")
+        ax.set_ylabel("BTCUSDT spot price (USDT)")
+        ax.set_title("7d traded volume time-price PROXY (5m HLC3, not order book)")
+        fig.colorbar(im,ax=ax,label="log(1 + 5m traded BTC volume per price/time bin)")
+        fig.tight_layout()
+        fig.savefig(OUT/"sample_7d_volume_time_price_HEATMAP_PROXY.png",dpi=135)
         plt.close(fig)
     except Exception as err:
         print("PROFILE_CHART_WARNING "+str(err)[:250],flush=True)
