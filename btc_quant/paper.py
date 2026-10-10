@@ -96,7 +96,10 @@ def paper_tick(state, cfg, history, observed_price, when, *, signal_fn=None, str
             book.sell(symbol,when,float(observed_price),cfg,"plugin_exit")
             closed=True
         elif not closed and symbol not in book.positions and bool(last.buy_signal):
-            book.buy(symbol,when,float(observed_price),float(last.atr),cfg)
+            bracket = ({"stop_price": float(last.initial_stop_price),
+                        "reward_risk": float(last.reward_risk)}
+                       if "initial_stop_price" in last.index else {})
+            book.buy(symbol,when,float(observed_price),float(last.atr),cfg,**bracket)
     elif signal_fn and old is not None and cursor>old+STEPS[cfg.timeframe]:
         LOG.warning("Missed bars; stale plugin signals skipped")
     book.mark(when,cfg)
