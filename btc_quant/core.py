@@ -67,12 +67,22 @@ class Account:
             total += max(0.0, pos.entry_cost - pos.quantity * exit_price * (1-cfg.fee))
         return total
 
-    def buy(self, symbol, when, raw_price, atr, cfg, *, cash_cap=None, reason="plugin_buy"):
+    def buy(self, symbol, when, raw_price, atr, cfg, *, cash_cap=None,
+            reason="plugin_buy", stop_price=None, reward_risk=None):
         if (symbol not in cfg.symbols or self.halted or symbol in self.positions or
                 not math.isfinite(atr) or atr <= 0 or not math.isfinite(raw_price) or raw_price <= 0):
             return False
         price = raw_price * (1+cfg.slip)
-        stop, take = price-cfg.stop_atr*atr, price+cfg.take_atr*atr
+        if (stop_price is None) != (reward_risk is None):
+            raise ValueError("Stop price and reward/risk must be supplied together")
+        if stop_price is not None:
+            if not (math.isfinite(stop_price) and math.isfinite(reward_risk)
+                    and 0 < stop_price < price and 0 < reward_risk <= 100):
+                return False  # invalidated by a next-open gap, or bad R
+            stop = float(stop_price)
+            take = price + float(reward_risk) * (price - stop)
+        else:
+            stop, take = price-cfg.stop_atr*atr, price+cfg.take_atr*atr
         if stop <= 0:
             return False
         per_unit_risk = price*(1+cfg.fee) - stop*(1-cfg.slip)*(1-cfg.fee)
@@ -177,7 +187,10 @@ def backtest(history, cfg, *, signal_fn=None, days=None, start_ms=None, end_ms=N
         # Skip first candle of freshly reset fold; previous signal is outside window.
         prev_inside = timestamps[i-1]>=beginning if start_ms is not None else True
         if (not exited and prev_inside and bool(prev.buy_signal) and symbol not in book.positions):
-            book.buy(symbol,when,float(bar.open),float(prev.atr),cfg)
+            bracket = ({"stop_price": float(prev.initial_stop_price),
+                        "reward_risk": float(prev.reward_risk)}
+                       if "initial_stop_price" in x.columns else {})
+            book.buy(symbol,when,float(bar.open),float(prev.atr),cfg,**bracket)
         trigger=book.protective_exit(symbol,float(bar.open),float(bar.high),float(bar.low))
         if trigger:
             book.sell(symbol,when,trigger[0],cfg,trigger[1])
