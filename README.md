@@ -75,3 +75,69 @@ Observer mode is not a working live stop-loss service.
 Historical BTC data under `data/market/` and reports under `outputs/` remain local
 and ignored by Git. Old research PRs were closed, but their Git history is retained
 on branches and in the PR records. No history is rewritten.
+
+## Optional research plugin: video's six-MA compression and first pullback (NOT default)
+
+Source: [video](https://www.youtube.com/watch?v=vdCdg4MdwBs), study based on
+its full ~42-minute transcription. At 02:21 the creator specifies six lines:
+**SMA(20,60,120)** and **EMA(20,60,120)**. At 13:27–20:20 they introduce
+**two different entry methods**: (1) compression-zone breakout and successful
+retest; (2) after dispersion, the **first successful MA20 pullback**. At
+20:28–27:29 they describe three take-profit concepts: fixed reward/risk,
+previous compression zone, or Fibonacci extension. At 27:29–29:04 they say
+stops belong below the entry structure. The demonstrations include **SHORT
+perpetual futures and leverage**, which are deliberately **not implemented**.
+
+This branch adds TWO separate, explicitly selected, research-only long BTC spot
+plugins. Neither is bundled as a default trading signal. It implements **only
+the video's fixed 1:3 reward:risk exit alternative**, with next-bar entries and
+hard price-bracket stops. Historical support-zone profit targets, Fibonacci
+scale-outs, discretionary exits, shorting, leverage and actual orders are NOT
+implemented. The current-price/wait-for-'effective-break' discretion is not
+reconstructed: instead, the stop is a conservative executable price barrier.
+
+**Critical interpretation:** The video does *not* define numerical thresholds
+for "MA compression", "valid break", "retest holds", or how many bars a zone
+remains valid. The following are **researcher-defined assumptions**, not the
+creator's formulas or proven-optimal settings:
+
+| Assumption | This exploratory implementation |
+|---|---|
+| Compression | (max of six MA/EMA − min) / close <= 1.2% for at least 3 bars |
+| Zone | Frozen min/max across last 12 compression bars |
+| Breakout | completed green candle closes > frozen zone top by 0.5% |
+| Zone expiry | 24 bars after breakout |
+| Retest | bar low <= zone top or MA20 plus a 0.2% tolerance; green close above reference |
+| Initial stop | zone bottom or signal-bar MA20, 0.1% below reference |
+| Take profit | 3R from *actual simulated entry fill* and declared stop |
+| Execution | signal after fully closed bar, next candle's opening price |
+
+A price gap below the planned long stop cancels the entry. Fees, slippage,
+maximum allocation, drawdown halt and stop-first OHLC ambiguity remain under
+the **unchanged core account risk rules**. The two plugins are independent:
+
+```bash
+# Use a trusted, audited source; does NOT put in real orders.
+python -m btc_quant backtest \
+  --strategy research_strategies/video_six_ma.py:compression_retest \
+  --csv-dir data/market --interval 4h --days 730 \
+  --output-dir outputs/video6ma-compression
+
+python -m btc_quant backtest \
+  --strategy research_strategies/video_six_ma.py:first_ma20_retest \
+  --csv-dir data/market --interval 4h --days 730 \
+  --output-dir outputs/video6ma-first-ma20
+
+python -m btc_quant rolling \
+  --strategy research_strategies/video_six_ma.py:compression_retest \
+  --csv-dir data/market --interval 4h --train-days 180 \
+  --test-days 60 --step-days 60 \
+  --output-dir outputs/video6ma-compression-rolling
+```
+
+***Do not use this as proof of profitability.*** Synthetic tests only verify
+signal causality and account behavior. Previously studied BTC price history is
+exploratory rather than an untouched holdout; neither past-account screenshots
+nor claimed 1:3 opportunity ratio establish positive expectancy. Validate with
+real historical BTC candles, realistic fees/slippage, paired walk-forward folds
+and new future paper data before considering any trading application.
